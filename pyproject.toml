@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "macbook-live-meeting-notes"
+version = "0.1.0"
+description = "Local-first English live transcription and meeting notes on Apple Silicon"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "MIT" }
+authors = [{ name = "Jonathan Jing" }]
+dependencies = [
+  "mlx-audio[stt] @ git+https://github.com/Blaizzy/mlx-audio.git@727fc9301de58b2179eff415710b7d95dda59169",
+  "numpy>=1.26.4",
+  "rich>=13.9",
+  "sounddevice>=0.5.3",
+  "typer>=0.16",
+]
+
+[project.optional-dependencies]
+notes = ["mlx-lm>=0.31.1"]
+dev = [
+  "build>=1.2",
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "ruff>=0.12",
+]
+
+[project.scripts]
+meeting-notes = "meeting_notes.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/meeting_notes"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
