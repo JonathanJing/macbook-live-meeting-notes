@@ -285,7 +285,7 @@ UI_HTML = """<!doctype html>
     .toolbar, .card { background: white; border: 1px solid #e5e5e7; border-radius: 16px; padding: 18px; }
     .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     select, button { border-radius: 10px; border: 1px solid #c7c7cc; padding: 10px 14px; font-size: 15px; }
-    select { min-width: 280px; background: white; }
+    select { min-width: 0; max-width: 100%; flex: 1 1 280px; background: white; }
     button { border: 0; background: #0071e3; color: white; font-weight: 600; cursor: pointer; }
     button.stop { background: #d70015; }
     button:disabled { opacity: .45; cursor: default; }
@@ -299,22 +299,24 @@ UI_HTML = """<!doctype html>
     .partial { color: #8e8e93; }
     .files { margin-top: 16px; color: #6e6e73; font-size: 13px; overflow-wrap: anywhere; }
     .error-text { color: #d70015; margin-top: 10px; }
-    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } .status { width: 100%; margin-left: 0; } }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } .status { width: 100%; margin-left: 0; } select { flex-basis: 100%; width: 100%; } }
   </style>
 </head>
 <body><main>
   <h1>Local Meeting Notes</h1>
   <p class="sub">Nemotron ASR + Qwen3.5 4B · audio and text stay on this Mac</p>
   <section class="toolbar">
+    <label class="sr-only" for="device">Microphone</label>
     <select id="device"><option value="">Default microphone</option></select>
     <button id="start">Start recording</button>
     <button id="stop" class="stop" disabled>Stop & save</button>
-    <span id="status" class="status"><span class="dot"></span><span>Ready</span></span>
+    <span id="status" class="status" role="status" aria-live="polite"><span class="dot"></span><span>Ready</span></span>
   </section>
-  <div id="error" class="error-text"></div>
+  <div id="error" class="error-text" role="alert"></div>
   <div class="grid">
-    <section class="card"><h2>Live transcript</h2><pre id="transcript">Waiting to start…</pre></section>
-    <section class="card"><h2>Meeting notes</h2><pre id="notes">Notes are generated locally while recording and finalized when you stop.</pre></section>
+    <section class="card"><h2>Live transcript</h2><pre id="transcript" aria-live="polite" aria-atomic="false">Waiting to start…</pre></section>
+    <section class="card"><h2>Meeting notes</h2><pre id="notes" aria-live="polite">Notes are generated locally while recording and finalized when you stop.</pre></section>
   </div>
   <div id="files" class="files"></div>
 </main>
