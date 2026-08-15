@@ -16,6 +16,7 @@ from .events import SessionEvent
 from .notes import ExtractiveNoteGenerator, MLXNoteGenerator
 from .runner import MeetingRunner
 from .session import SessionWriter
+from .ui import serve_ui
 
 app = typer.Typer(no_args_is_help=True, help="Local English live meeting notes.")
 console = Console()
@@ -40,6 +41,19 @@ def devices() -> None:
             str(item["default_rate"]),
         )
     console.print(table)
+
+
+@app.command()
+def ui(
+    sessions_dir: Path = Path("sessions"),
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    open_browser: bool = True,
+) -> None:
+    """Open a simple local browser UI for microphone recording."""
+    console.print(f"Local UI: [bold]http://{host}:{port}[/bold]")
+    console.print("Press Ctrl-C in this terminal to close the UI server.")
+    serve_ui(sessions_dir, host=host, port=port, open_browser=open_browser)
 
 
 def _notes_backend(kind: str, model_id: str):
@@ -182,14 +196,25 @@ def summarize(
     notes_model: str = "mlx-community/Qwen3.5-4B-MLX-4bit",
 ) -> None:
     """Regenerate notes from a completed local transcript."""
-    transcript_path = session_dir / "transcript.txt"
-    if not transcript_path.exists():
+    transcript_path = _session_artifact(session_dir, "transcript", ".txt")
+    if transcript_path is None:
         raise typer.BadParameter("session has no transcript.txt")
     notes = _notes_backend(notes_backend, notes_model).generate(
         transcript_path.read_text(encoding="utf-8")
     )
-    (session_dir / "notes.md").write_text(notes.rstrip() + "\n", encoding="utf-8")
-    console.print(session_dir / "notes.md")
+    notes_path = _session_artifact(session_dir, "notes", ".md")
+    if notes_path is None:
+        notes_path = session_dir / f"{session_dir.name}_notes.md"
+    notes_path.write_text(notes.rstrip() + "\n", encoding="utf-8")
+    console.print(notes_path)
+
+
+def _session_artifact(session_dir: Path, name: str, suffix: str) -> Path | None:
+    legacy = session_dir / f"{name}{suffix}"
+    if legacy.exists():
+        return legacy
+    matches = list(session_dir.glob(f"*_{name}{suffix}"))
+    return matches[0] if len(matches) == 1 else None
 
 
 @app.command()

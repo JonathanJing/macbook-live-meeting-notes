@@ -11,9 +11,10 @@ This proof of concept combines:
 
 ## POC status
 
-The CLI, true incremental model adapter, microphone input, WAV replay, durable
-session artifacts, extractive notes, optional MLX-LM notes, and offline cached-model
-flow are implemented. See [measured evidence](docs/BENCHMARK.md) and
+The CLI, simple local browser UI, true incremental model adapter, microphone
+input, WAV recording and replay, durable session artifacts, extractive notes,
+optional MLX-LM notes, and offline cached-model flow are implemented. See
+[measured evidence](docs/BENCHMARK.md) and
 [known limitations](#known-limitations) before relying on it for a meeting.
 
 ## Requirements
@@ -39,6 +40,24 @@ The first ASR run downloads approximately 756 MB of weights. The optional 4-bit
 note model uses several additional gigabytes.
 
 ## Use
+
+### Simple local UI
+
+Start the browser UI:
+
+```bash
+uv run meeting-notes ui
+```
+
+The page opens at `http://127.0.0.1:8765`. Select a microphone, click **Start
+recording**, then click **Stop & save**. The UI always uses the local
+`mlx-community/Qwen3.5-4B-MLX-4bit` model for the final notes. The first start
+can take longer while the two local models load.
+
+The UI records the microphone to WAV while it transcribes. Audio, transcript,
+and notes never leave the Mac.
+
+### Terminal commands
 
 List inputs:
 
@@ -75,22 +94,27 @@ uv run meeting-notes summarize sessions/SESSION_ID --notes-backend mlx
 ## Session artifacts
 
 ```text
-sessions/<UTC timestamp>/
-  manifest.json
-  events.jsonl
-  transcript.txt
-  transcript.md
-  notes.md
+sessions/<local date and time>/
+  <date_time>_manifest.json
+  <date_time>_events.jsonl
+  <date_time>_audio.wav        # browser UI sessions
+  <date_time>_transcript.txt
+  <date_time>_transcript.md
+  <date_time>_notes.md
 ```
+
+For example, a session started on August 14, 2026 at 3:42:18 PM is saved under
+`sessions/2026-08-14_15-42-18/`, with files such as
+`2026-08-14_15-42-18_audio.wav`.
 
 `events.jsonl` is append-only. Recover committed text with:
 
 ```bash
-uv run meeting-notes recover sessions/SESSION_ID/events.jsonl
+uv run meeting-notes recover sessions/SESSION_ID/*_events.jsonl
 ```
 
-Raw audio is not saved by the POC. The complete `sessions/` directory is ignored
-by Git.
+Raw audio is saved for browser UI sessions. Terminal `start` sessions continue
+to omit raw audio. The complete `sessions/` directory is ignored by Git.
 
 ## Privacy
 
@@ -120,8 +144,8 @@ The unit suite does not load model weights or access a microphone.
 - Proper nouns can be wrong; the measured sample confused `Mariners`/`Mary's`.
 - The low-level Nemotron adapter is pinned to a specific `mlx-audio` commit because
   the upstream package does not yet expose a complete live-microphone `feed()` API.
-- The current terminal view emits incremental text but is not a polished full-screen
-  UI.
+- The browser UI is deliberately simple and must remain open through finalization
+  to see the completed notes.
 - Meeting notes are generated text and must be checked against the transcript.
 - The 15-minute live acceptance run and independently reviewed short-fragment WER
   gate remain outstanding.

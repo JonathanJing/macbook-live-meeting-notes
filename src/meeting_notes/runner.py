@@ -24,6 +24,7 @@ class MeetingRunner:
         *,
         endpoint: SilenceEndpoint | None = None,
         on_snapshot=None,
+        on_commit=None,
         note_interval_seconds: float = 60.0,
     ) -> None:
         self.asr = asr
@@ -32,6 +33,7 @@ class MeetingRunner:
         self.endpoint = endpoint or SilenceEndpoint()
         self.stabilizer = TranscriptStabilizer()
         self.on_snapshot = on_snapshot
+        self.on_commit = on_commit
         self.note_interval_seconds = note_interval_seconds
         self.audio_seconds = 0.0
         self.compute_seconds = 0.0
@@ -95,6 +97,8 @@ class MeetingRunner:
         fragment = self.stabilizer.commit()
         if fragment:
             self.writer.append_utterance(fragment, self.audio_seconds)
+            if self.on_commit is not None:
+                self.on_commit(fragment)
             if self.audio_seconds - self._last_note_audio >= self.note_interval_seconds:
                 self._note_worker.submit(self.writer.transcript())
                 self._last_note_audio = self.audio_seconds

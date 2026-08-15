@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import queue
+import threading
 import wave
 from collections.abc import Iterator
 from pathlib import Path
@@ -67,11 +68,14 @@ class MicrophoneSource:
         self.chunk_samples = round(sample_rate * chunk_ms / 1000)
         self._queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=queue_chunks)
         self._stream = None
+        self._stop_requested = threading.Event()
         self.dropped_chunks = 0
         self.status_messages: list[str] = []
 
     def __enter__(self) -> MicrophoneSource:
         import sounddevice as sd
+
+        self._stop_requested.clear()
 
         def callback(indata, _frames, _time_info, status) -> None:
             if status:
@@ -94,10 +98,33 @@ class MicrophoneSource:
         return self
 
     def __exit__(self, *_args: object) -> None:
+        self._stop_requested.set()
         if self._stream is not None:
             self._stream.stop()
             self._stream.close()
 
     def chunks(self) -> Iterator[np.ndarray]:
-        while True:
-            yield self._queue.get()
+        while not self._stop_requested.is_set() or not self._queue.empty():
+            try:
+                yield self._queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+
+    def request_stop(self) -> None:
+        """Ask the consumer iterator to finish without blocking the audio callback."""
+        self._stop_requested.set()
+
+
+def save_wav_chunks(
+    chunks: Iterator[np.ndarray], path: Path, *, sample_rate: int = TARGET_SAMPLE_RATE
+) -> Iterator[np.ndarray]:
+    """Persist float32 mono chunks as 16-bit PCM while yielding them unchanged."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        for chunk in chunks:
+            pcm = (np.clip(chunk, -1.0, 1.0) * 32767.0).astype("<i2")
+            handle.writeframes(pcm.tobytes())
+            yield chunk

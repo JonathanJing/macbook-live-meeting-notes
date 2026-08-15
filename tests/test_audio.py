@@ -2,7 +2,7 @@ import wave
 
 import numpy as np
 
-from meeting_notes.audio import iter_chunks, read_wav
+from meeting_notes.audio import iter_chunks, read_wav, save_wav_chunks
 
 
 def test_iter_chunks_preserves_samples() -> None:
@@ -22,3 +22,14 @@ def test_read_wav_downmixes_stereo(tmp_path) -> None:
         handle.writeframes(samples.tobytes())
     result = read_wav(path)
     np.testing.assert_allclose(result, [0.0, 1000 / 32768], atol=1e-6)
+
+
+def test_save_wav_chunks_round_trips_audio(tmp_path) -> None:
+    path = tmp_path / "recording.wav"
+    chunks = [
+        np.array([-1.0, -0.5, 0.0], dtype=np.float32),
+        np.array([0.5, 1.0], dtype=np.float32),
+    ]
+    yielded = list(save_wav_chunks(iter(chunks), path, sample_rate=16_000))
+    assert yielded == chunks
+    np.testing.assert_allclose(read_wav(path), np.concatenate(chunks), atol=1 / 32768)

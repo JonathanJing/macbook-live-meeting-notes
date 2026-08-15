@@ -11,8 +11,9 @@ Build a MacBook-local POC that:
 5. exports the transcript and notes without sending audio or text to a cloud
    service.
 
-The primary user experience is a terminal application. A native menu-bar or
-desktop UI is intentionally deferred until the audio and latency path is proven.
+The POC offers both a terminal application and a small localhost browser UI. A
+native menu-bar application and installer remain deferred until the audio and
+latency path is proven.
 
 ## 2. Scope
 
@@ -25,7 +26,7 @@ desktop UI is intentionally deferred until the audio and latency path is proven.
 - Live partial text and finalized utterances.
 - Local structured notes containing summary, decisions, action items, and open
   questions.
-- Markdown, plain-text, and JSONL session artifacts.
+- WAV, Markdown, plain-text, and JSONL session artifacts for UI sessions.
 - File-replay mode for repeatable tests.
 
 ### Out of scope for the POC
@@ -82,7 +83,7 @@ Audio capture -> bounded chunk queue -> adaptive silence endpointing
                              transcript stabilizer
                                /              \
                               v                v
-                    terminal live view     session writer
+                 terminal/browser view     session writer
                                                |
                                       finalized text batches
                                                |
@@ -100,7 +101,8 @@ Audio capture -> bounded chunk queue -> adaptive silence endpointing
   runs on the real-time audio callback.
 - Start with 320 ms chunks and make 160, 320, 560, and 1120 ms selectable.
 - Record queue overrun events rather than blocking and silently losing audio.
-- Do not retain raw audio by default. `--save-audio` explicitly enables it.
+- Browser UI sessions retain raw audio because recording is part of that explicit
+  workflow. Terminal sessions do not retain it.
 - File-replay mode feeds the same queue and can run in wall-clock or accelerated
   mode.
 
@@ -136,13 +138,13 @@ Audio capture -> bounded chunk queue -> adaptive silence endpointing
 Each session is written under a user-selected data directory:
 
 ```text
-sessions/<timestamp>/
-  manifest.json
-  events.jsonl
-  transcript.txt
-  transcript.md
-  notes.md
-  audio.wav          # only with --save-audio
+sessions/<YYYY-MM-DD_HH-MM-SS>/
+  <timestamp>_manifest.json
+  <timestamp>_events.jsonl
+  <timestamp>_transcript.txt
+  <timestamp>_transcript.md
+  <timestamp>_notes.md
+  <timestamp>_audio.wav       # UI sessions
 ```
 
 `events.jsonl` is append-only and is the recovery source if the process exits
@@ -176,7 +178,8 @@ Planned commands:
 ```text
 meeting-notes devices
 meeting-notes models
-meeting-notes start [--device ...] [--save-audio]
+meeting-notes ui
+meeting-notes start [--device ...]
 meeting-notes replay sample.wav [--realtime]
 meeting-notes summarize SESSION_DIR
 meeting-notes benchmark fixtures/
@@ -189,6 +192,15 @@ During a session:
 - `m` inserts a meeting marker;
 - `s` refreshes notes;
 - `q` finalizes and exits cleanly.
+
+### 5.8 Local browser UI
+
+- Bind only to `127.0.0.1` by default.
+- Provide microphone selection and explicit Start/Stop controls.
+- Poll local session state for live partial text and elapsed audio time.
+- Write WAV data incrementally during capture.
+- On Stop, finalize the transcript and Qwen3.5 4B notes before reporting the
+  completed session path.
 
 ## 6. Concurrency and backpressure
 
@@ -208,7 +220,8 @@ recording the loss.
 - No API keys or cloud endpoints.
 - After model weights are cached, an offline test must succeed with network
   access disabled.
-- Raw audio retention is opt-in.
+- Raw audio retention is explicit: enabled by the browser recording workflow and
+  disabled in the terminal workflow.
 - Session directories are ignored by Git.
 - Logs must not contain environment variables or unrelated filesystem content.
 - Model licenses and upstream attribution must be included before public release.

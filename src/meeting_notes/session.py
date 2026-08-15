@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import platform
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
 from .events import SessionEvent
@@ -17,18 +17,22 @@ class SessionWriter:
         metadata: dict[str, object] | None = None,
         session_id: str | None = None,
     ) -> None:
-        self.session_id = session_id or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        now = datetime.now().astimezone()
+        self.session_id = session_id or now.strftime("%Y-%m-%d_%H-%M-%S")
         self.path = root / self.session_id
         self.path.mkdir(parents=True, exist_ok=False)
-        self.events_path = self.path / "events.jsonl"
-        self.transcript_path = self.path / "transcript.txt"
-        self.transcript_markdown_path = self.path / "transcript.md"
-        self.notes_path = self.path / "notes.md"
-        self.manifest_path = self.path / "manifest.json"
+        self.events_path = self.artifact_path("events", ".jsonl")
+        self.transcript_path = self.artifact_path("transcript", ".txt")
+        self.transcript_markdown_path = self.artifact_path("transcript", ".md")
+        self.notes_path = self.artifact_path("notes", ".md")
+        self.audio_path = self.artifact_path("audio", ".wav")
+        self.manifest_path = self.artifact_path("manifest", ".json")
+        self.transcript_path.write_text("", encoding="utf-8")
+        self.transcript_markdown_path.write_text("", encoding="utf-8")
         manifest = {
             "schema_version": 1,
             "session_id": self.session_id,
-            "created_at": datetime.now(UTC).isoformat(),
+            "created_at": now.isoformat(),
             "model_id": model_id,
             "platform": platform.platform(),
             "machine": platform.machine(),
@@ -39,6 +43,9 @@ class SessionWriter:
             json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
         self.append(SessionEvent.create("session", data=manifest))
+
+    def artifact_path(self, name: str, suffix: str) -> Path:
+        return self.path / f"{self.session_id}_{name}{suffix}"
 
     def append(self, event: SessionEvent) -> None:
         with self.events_path.open("a", encoding="utf-8") as handle:
