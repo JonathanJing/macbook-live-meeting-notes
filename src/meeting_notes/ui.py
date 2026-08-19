@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import threading
 import webbrowser
 from dataclasses import asdict, dataclass
@@ -79,6 +80,13 @@ class MeetingUIController:
         if source is not None:
             source.request_stop()
         return True
+
+    def reveal_sessions(self) -> Path:
+        """Open the local recordings root in Finder."""
+        path = self.sessions_dir.resolve()
+        path.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["open", str(path)], check=True)
+        return path
 
     def _record(self, device: int | str | None) -> None:
         writer: SessionWriter | None = None
@@ -236,6 +244,15 @@ def serve_ui(
                     HTTPStatus.ACCEPTED if stopped else HTTPStatus.CONFLICT,
                     controller.snapshot(),
                 )
+            elif self.path == "/api/reveal":
+                try:
+                    path = controller.reveal_sessions()
+                    self._json(HTTPStatus.OK, {"path": str(path)})
+                except (OSError, subprocess.CalledProcessError) as exc:
+                    self._json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {"error": f"Could not open Finder: {exc}"},
+                    )
             else:
                 self._json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
 
@@ -288,6 +305,7 @@ UI_HTML = """<!doctype html>
     select { min-width: 0; max-width: 100%; flex: 1 1 280px; background: white; }
     button { border: 0; background: #0071e3; color: white; font-weight: 600; cursor: pointer; }
     button.stop { background: #d70015; }
+    button.secondary { background: #e8e8ed; color: #1d1d1f; }
     button:disabled { opacity: .45; cursor: default; }
     .status { margin-left: auto; color: #6e6e73; }
     .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #8e8e93; margin-right: 7px; }
@@ -311,6 +329,7 @@ UI_HTML = """<!doctype html>
     <select id="device"><option value="">Default microphone</option></select>
     <button id="start">Start recording</button>
     <button id="stop" class="stop" disabled>Stop & save</button>
+    <button id="reveal" class="secondary">Open recordings folder</button>
     <span id="status" class="status" role="status" aria-live="polite"><span class="dot"></span><span>Ready</span></span>
   </section>
   <div id="error" class="error-text" role="alert"></div>
@@ -321,7 +340,7 @@ UI_HTML = """<!doctype html>
   <div id="files" class="files"></div>
 </main>
 <script>
-const start = document.querySelector('#start'), stop = document.querySelector('#stop');
+const start = document.querySelector('#start'), stop = document.querySelector('#stop'), reveal = document.querySelector('#reveal');
 const device = document.querySelector('#device'), transcript = document.querySelector('#transcript');
 const notes = document.querySelector('#notes'), status = document.querySelector('#status');
 const files = document.querySelector('#files'), error = document.querySelector('#error');
@@ -334,7 +353,7 @@ function render(s) {
   const active = ['loading','listening','finalizing'].includes(s.status);
   start.disabled = active; stop.disabled = !['loading','listening'].includes(s.status); device.disabled = active;
   status.className = `status ${s.status}`; status.innerHTML = `<span class="dot"></span><span>${s.message}${s.audio_seconds ? ` · ${s.audio_seconds.toFixed(1)}s` : ''}</span>`;
-  transcript.innerHTML = escapeHtml(s.transcript || '') + (s.partial ? `<span class="partial">${escapeHtml((s.transcript?'\n':'') + s.partial)}</span>` : '') || 'Waiting to start…';
+  transcript.innerHTML = escapeHtml(s.transcript || '') + (s.partial ? `<span class="partial">${escapeHtml((s.transcript?'\\n':'') + s.partial)}</span>` : '') || 'Waiting to start…';
   if (s.notes) notes.textContent = s.notes;
   error.textContent = s.error || '';
   files.textContent = s.session_path ? `Saved in ${s.session_path} · ${[s.audio_file,s.transcript_file,s.notes_file].filter(Boolean).join(' · ')}` : '';
@@ -342,6 +361,7 @@ function render(s) {
 function escapeHtml(value) { const d=document.createElement('div'); d.textContent=value; return d.innerHTML; }
 start.onclick = async () => { const r=await post('/api/start',{device:device.value}); render(await r.json()); };
 stop.onclick = async () => { const r=await post('/api/stop'); render(await r.json()); };
+reveal.onclick = async () => { const r=await post('/api/reveal'); const data=await r.json(); if (!r.ok) error.textContent=data.error || 'Could not open Finder'; };
 async function poll() { try { render(await fetch('/api/state').then(r=>r.json())); } catch (_) {} }
 loadDevices().catch(e => { error.textContent = `Could not list microphones: ${e}`; }); poll(); setInterval(poll, 700);
 </script></body></html>"""
