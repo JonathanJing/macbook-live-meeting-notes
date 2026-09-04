@@ -39,6 +39,19 @@ uv run meeting-notes doctor
 The first ASR run downloads approximately 756 MB of weights. The optional 4-bit
 note model uses several additional gigabytes.
 
+## Packaged macOS bundle
+
+Build a ZIP containing the frontend, backend, locked dependencies, Chinese quick
+start guide, and a launcher:
+
+```bash
+./scripts/build_bundle.sh
+```
+
+The generated archive is written under `dist/`. It deliberately excludes model
+weights, recordings, `.venv`, and Git history. See
+[QUICKSTART_ZH.md](QUICKSTART_ZH.md) for unzip and launch instructions.
+
 ## Use
 
 ### Simple local UI
